@@ -200,17 +200,27 @@ install_sftp() {
 }
 
 install_gcsfuse() {
-    printf "creating gcs directory for the gcsfuse mount point...\n"
-    gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
-        --command "sudo mkdir /home/${SFTP_USER}/gcs && sudo chown ${SFTP_USER}:sftp_grp /home/${SFTP_USER}/gcs"
+    printf "Setting up gcsfuse...\n"
+    # gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
+    #     --command "sudo mkdir /home/${SFTP_USER}/gcs && sudo chown ${SFTP_USER}:sftp_grp /home/${SFTP_USER}/gcs"
+    #
+    # printf "Installing gcsfuse on the machine.....\n"
+    # gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
+    #     --command "echo \"deb https://packages.cloud.google.com/apt gcsfuse-$(lsb_release -c -s) main\" | sudo tee /etc/apt/sources.list.d/gcsfuse.list"
+    # gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
+    #     --command 'curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -'
+    # gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
+    #     --command 'sudo apt-get update && sudo apt install -y fuse gcsfuse'
 
-    printf "Installing gcsfuse on the machine.....\n"
     gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
-        --command "echo \"deb https://packages.cloud.google.com/apt gcsfuse-$(lsb_release -c -s) main\" | sudo tee /etc/apt/sources.list.d/gcsfuse.list"
-    gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
-        --command 'curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -'
-    gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
-        --command 'sudo apt-get update && sudo apt install -y fuse gcsfuse'
+        --command="bash -s" <<EOF
+sudo mkdir /home/${SFTP_USER}/gcs
+sudo chown ${SFTP_USER}:sftp_grp /home/${SFTP_USER}/gcs
+echo "deb https://packages.cloud.google.com/apt gcsfuse-$(lsb_release -c -s) main" | sudo tee /etc/apt/sources.list.d/gcsfuse.list
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+sudo apt-get update
+sudo apt install -y fuse gcsfuse
+EOF
 
     printf "mounting gcs via gcsfuse...\n"
     gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
@@ -218,7 +228,7 @@ install_gcsfuse() {
 }
 
 get_external_ip() {
-    EXTERNAL_IP=$(gcloud compute instances describe "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" --format="get(networkInterfaces[0].accessConfigs[0].natIP")
+    EXTERNAL_IP=$(gcloud compute instances describe "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" --format="get(networkInterfaces[0].accessConfigs[0].natIP)")
 }
 
 MISSING_ENV_VARS=()

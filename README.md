@@ -44,7 +44,25 @@ sftp -oPort=22 testuser@${EXTERNAL_IP}
 
 The password is `Secret123`.
 
-You can then cd into the `gcs` directory, and put files into it:
+If you get an error message like the following:
+```
+IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!
+Someone could be eavesdropping on you right now (man-in-the-middle attack)!
+It is also possible that a host key has just been changed.
+The fingerprint for the ED25519 key sent by the remote host is
+SHA256:yPBaiCCn+0H6PZ6YKqLnhK6Vl5O4neUJKdSO7N7gKyo.
+Please contact your system administrator.
+Add correct host key in /Users/dchiesa/.ssh/known_hosts to get rid of this message.
+Offending ECDSA key in /Users/dchiesa/.ssh/known_hosts:50
+Host key for 34.168.136.91 has changed and you have requested strict checking.
+Host key verification failed.
+Connection closed.
+```
+
+You need to manually modify your `~/.ssh/known_hosts` file, to remove the entry or entries for the EXTERNAL_IP.
+
+
+After you successfully sign in, you can then cd into the `gcs` directory, and put files into it:
 ```
 cd gcs
 put README.md
