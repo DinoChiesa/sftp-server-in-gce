@@ -1,0 +1,7 @@
+Subsystem       sftp    internal-sftp
+
+Match Group sftp_users
+ChrootDirectory %h
+ForceCommand internal-sftp
+AllowTcpForwarding no
+X11Forwarding no
