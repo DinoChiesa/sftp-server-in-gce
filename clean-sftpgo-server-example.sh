@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-EXAMPLE_NAME="${EXAMPLE_PREFIX}-sftp"
+EXAMPLE_NAME="${EXAMPLE_PREFIX}-sftpgo"
 VM_SA_PREFIX="${EXAMPLE_NAME}-"
 BUCKET_PREFIX="${EXAMPLE_NAME}-"
 PS_TOPIC_PREFIX="${EXAMPLE_NAME}-"

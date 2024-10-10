@@ -1,12 +1,24 @@
 # Setting up an SFTP server in Google Compute Engine
 
 The goal here is to be able to set up an SFTP server in Google Compute Engine,
-in about 5 minutes.
+in about 5 minutes.  There are two options :
+ - use the `internal-sftp`, which means that sshd will use the SFTP server code built-into the sshd.
+ - use [SFTPgo](https://docs.sftpgo.com/2.6/), which is an external service, separate from sshd.
 
-The basic steps for doing this with the [Google Cloud
+
+For running `internal-sftp`,
+the basic steps for setting it up as an SFTP server with the [Google Cloud
 console](https://console.cloud.google.com) (interactive UI) are described
-[here](https://stackoverflow.com/a/64143107).  But this repo uses a setup script
-that depends on gcloud to perform the necessary steps.
+[here](https://stackoverflow.com/a/64143107).
+
+For running SFTPgo, the steps for an interactive setup are described [in this
+article on
+Medium](https://medium.com/google-cloud/sftpgo-access-to-gcs-via-sftp-e203e0783f6f)
+by my old friend Neil Kolban.
+
+
+In either case, this repo uses a setup script that depends on gcloud to perform
+the necessary steps in an automated fashion.
 
 
 ## Disclaimer
@@ -23,7 +35,10 @@ Proof-of-concept work, to show what is possible.
 To make it hardened, you would need to set up health monitoring and logging and
 alerting. This example sets up a single user in the SFTP system; you would want
 to use public/private key pairs probably, and set up provisioning and key
-management for that. All of that is outside the scope of this setup script.
+management for that. If you're using SFTPgo, and if you do choose to use
+username/password authentication, you'd probably want MFA. And you might want a
+persistent data provider like Postgres, etc. All of that is outside the scope of
+the setup scripts here.
 
 
 ## Pre-requisites
@@ -40,7 +55,9 @@ If you use [Google Cloud Shell](https://cloud.google.com/shell/docs), those thin
 ## Getting set up
 
 It takes about 5 minutes to set up a working SFTP server in Google Compute
-Engine (GCE). Follow these steps. Don't be afraid of the script rubbishing your
+Engine (GCE), either using the `internal-sftp` option or the SFTPgo option.
+
+Follow these steps. Don't be afraid of the script rubbishing your
 GCP project; there is a cleanup script that removes all of the configuration the
 setup script creates.
 
@@ -53,29 +70,53 @@ setup script creates.
    source ./env.sh
    ```
 
-3. Run the setup script
-   ```
-   ./setup-sftp-server-example.sh
-   ```
-   This script performs a number of steps, using the gcloud command line tool:
+3. Run ONE of the setup scripts.
+
+   - if you want SFTPgo, then:
+      ```
+      ./setup-sftpgo-server-example.sh
+      ```
+   - if you want `internal-sftp`, then:
+      ```
+      ./setup-sftp-server-example.sh
+      ```
+
+
+   In either case, the script performs a number of steps, using the gcloud command line tool:
    - create a GCS bucket
    - create a Pubsub topic which gets notifications when a new file gets written to the GCS bucket
    - create a Service Account, and grant permissions on that bucket to the SA
    - create a VM instance, using Debian, that uses that service account as its identity
    - create firewall rules allowing SFTP access into the VM instance
-   - install sftp onto that VM instance, create a testuser, and configure sshd to allow that user to login
+   - for `internal-sftp`, install sftp onto that VM instance, create a testuser, and configure sshd to allow that user to login
+   - for SFTPgo, install sftpgo onto that VM instance, with a testuser
    - install gcsfuse - a filesystem that can use GCS as backing store - onto that instance. Configure it for use with the GCS Bucket.
 
-   This takes just a few minutes. The final lines of output of the script will look something like this:
+   This takes just a few minutes.
+
+   In the case of `internal-sftp`, the final lines of output of the script will look something like this:
    ```
-   OK. You can now SSH into the machine this way:
+   OK. You can now connect into the machine in these ways:
+      export EXTERNAL_IP="35.127.123.43"
       export VM_INSTANCE_NAME="sftp-example-instance-u0aptk-20241008-233550"
-      export EXTERNAL_IP="35.127.123.44"
 
       gcloud compute ssh "${VM_INSTANCE_NAME}" --project="${GCP_PROJECT}" --zone="${GCE_VM_ZONE}"
+
       sftp -oPort=22 testuser@${EXTERNAL_IP}
    ```
 
+   In the case of SFTPgo, the final lines of output of the script will look something like this:
+   ```
+   OK. You can now connect into the machine in these ways:
+    export EXTERNAL_IP="34.167.132.91"
+    export VM_INSTANCE_NAME="sftpgo-example-instance-duec8g-20241010-123723"
+
+    gcloud compute ssh "${VM_INSTANCE_NAME}" --project="${GCP_PROJECT}" --zone="${GCE_VM_ZONE}"
+
+    http://34.167.132.91:8080/web/admin
+
+    sftp -oPort=2022 testuser1@34.167.132.91
+   ```
 
 ## Using it
 
@@ -84,15 +125,22 @@ externally-accessible IP address. You can then sftp into that server and drop
 things into the right directory, and the files will be stored in GCS; the
 Pubsub topic will get a notification of each file written.
 
+For  `internal-sftp`, the port is 22:
 ```
-export EXTERNAL_IP="35.127.123.44"
+export EXTERNAL_IP="34.167.132.91"
 sftp -oPort=22 testuser@${EXTERNAL_IP}
 ```
 
-There is a single user provisioned: `testuser`.
+For SFTPgo, the port is 2022:
+```
+export EXTERNAL_IP="34.167.132.91"
+sftp -oPort=2022 testuser@${EXTERNAL_IP}
+```
+
+In either case, there is a single user provisioned: `testuser`.
 The password that the script sets for the user is `Secret123`.
 
-If you get an error message like the following:
+When you run sftp, if you get an error message like the following:
 ```
 IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!
 Someone could be eavesdropping on you right now (man-in-the-middle attack)!
@@ -107,7 +155,7 @@ Host key verification failed.
 Connection closed.
 ```
 
-You need to manually modify your `~/.ssh/known_hosts` file, to remove the entry or entries for the EXTERNAL_IP.
+...you need to manually modify your `~/.ssh/known_hosts` file, to remove the entry or entries for the EXTERNAL_IP.
 
 
 After you successfully sign in, you can then cd into the `gcs` directory, and put files into it:
@@ -120,7 +168,7 @@ exit
 If you then visit
 [https://console.cloud.google.com/storage/browser](https://console.cloud.google.com/storage/browser),
 and select your project, you should be able to see the bucket
-`sftp-server-example-bucket`, with the objects (files) you have uploaded via
+`example-sftp-bucket`, or `example-sftpgo-bucket`, with the objects (files) you have uploaded via
 FTP.
 
 The SFTP server has rights to create objects in the GCS bucket, but it does not
@@ -148,14 +196,20 @@ npm install
 
 Then, run the script to _put_ the HL7 batch file into the SFTP server:
 
+For `internal-sftp`,  use port 22:
 ```
-node ./put-one.js
+node ./put-one.js -P 22
+```
+For SFTPgo, use port 2022:
+
+```
+node ./put-one.js -P 2022
 ```
 
-This will _put_ a different HL7 file, one that contains a single message:
+The following will _put_ a different HL7 file, one that contains a single message:
 
 ```
-node ./put-one.js -f single-message-example1.hl7
+node ./put-one.js -P 2022 -f single-message-example1.hl7
 ```
 
 That helper script takes some other options. To see them:
@@ -170,7 +224,9 @@ a building block for more elaborations.
 
 The setup script here doesn't help with those possible elaborations, but you could do it yourself.
 
-One good example: use this as an entry point to an execution in [Google Cloud Application Integration](https://cloud.google.com/application-integration/docs/overview).
+One good example: use this as an entry point to an execution in [Google Cloud
+Application
+Integration](https://cloud.google.com/application-integration/docs/overview).
 
 To set that up, you need to create a new Integration, that uses a PubSub trigger,
 and configure the trigger to be invoked with a specific service account.
@@ -178,7 +234,10 @@ and configure the trigger to be invoked with a specific service account.
 That service account must have `pubsub.viewer` role on the topic. To set that up, you can use the following:
 
 ```
-TOPIC="projects/${GCP_PROJECT}/topics/sftp-server-example-topic"
+# for internal-sftp
+TOPIC="projects/${GCP_PROJECT}/topics/example-sftp-topic"
+# for SFTPgo
+TOPIC="projects/${GCP_PROJECT}/topics/example-sftpgo-topic"
 INT_SA="integration-runner-1"
 INT_SA_FULL="${INT_SA}@${GCP_PROJECT}.iam.gserviceaccount.com"
 gcloud iam service-accounts create "$INT_SA" --project="$GCP_PROJECT" --quiet
@@ -193,9 +252,16 @@ An example integration that picks up a file, and parses it as an HL7 batch file,
 
 ## Cleaning up
 
-To remove everything the setup script provisions, runt he cleanup script:
+To remove everything the setup script provisions, run the cleanup script.
+
+For  `internal-sftp`:
 ```
 ./clean-sftp-server-example.sh
+```
+
+To cleanup the SFTPgo server:
+```
+./clean-sftpgo-server-example.sh
 ```
 
 ## License

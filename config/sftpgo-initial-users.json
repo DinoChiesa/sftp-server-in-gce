@@ -1,0 +1,95 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "status": 1,
+      "username": "testuser",
+      "password": "$2a$10$JK6.Z/eJHRGoH4utwW74z.KY/tDpc7fClCUduQpFdWRnnn8snJwMy",
+      "has_password": true,
+      "home_dir": "/srv/sftpgo/data/testuser",
+      "uid": 0,
+      "gid": 0,
+      "max_sessions": 0,
+      "quota_size": 0,
+      "quota_files": 0,
+      "permissions": {
+        "/": [
+          "*"
+        ]
+      },
+      "upload_data_transfer": 0,
+      "download_data_transfer": 0,
+      "total_data_transfer": 0,
+      "created_at": 1728584374792,
+      "updated_at": 1728584374792,
+      "last_password_change": 1728584374792,
+      "filters": {
+        "hooks": {
+          "external_auth_disabled": false,
+          "pre_login_disabled": false,
+          "check_password_disabled": false
+        },
+        "totp_config": {
+          "secret": {}
+        }
+      },
+      "filesystem": {
+        "provider": 0,
+        "osconfig": {},
+        "s3config": {
+          "access_secret": {}
+        },
+        "gcsconfig": {
+          "credentials": {}
+        },
+        "azblobconfig": {
+          "account_key": {},
+          "sas_url": {}
+        },
+        "cryptconfig": {
+          "passphrase": {}
+        },
+        "sftpconfig": {
+          "password": {},
+          "private_key": {},
+          "key_passphrase": {}
+        },
+        "httpconfig": {
+          "password": {},
+          "api_key": {}
+        }
+      }
+    }
+  ],
+  "groups": [],
+  "folders": [],
+  "admins": [
+    {
+      "id": 1,
+      "status": 1,
+      "username": "admin",
+      "password": "$2a$10$I1g40rmUUyRySNkRWemGGesPmMvz/qsp17qCjtF.xxOl.M.tWU.ba",
+      "permissions": [
+        "*"
+      ],
+      "filters": {
+        "require_two_factor": false,
+        "totp_config": {
+          "secret": {}
+        },
+        "preferences": {}
+      },
+      "created_at": 1728584361983,
+      "updated_at": 1728584361983,
+      "last_login": 1728584361991
+    }
+  ],
+  "api_keys": [],
+  "shares": [],
+  "event_actions": [],
+  "event_rules": [],
+  "roles": [],
+  "ip_lists": [],
+  "configs": {},
+  "version": 16
+}

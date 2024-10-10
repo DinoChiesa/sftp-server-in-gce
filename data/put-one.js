@@ -2,7 +2,7 @@
 // ------------------------------------------------------------------
 //
 // created: Wed Oct  9 14:23:48 2024
-// last saved: <2024-October-09 19:19:55>
+// last saved: <2024-October-10 14:49:13>
 
 /* jshint esversion:9, node:true, strict:implied */
 /* global process, console, Buffer */
@@ -12,11 +12,11 @@ const defaults = {
   SOURCE_FILE: "batch-of-three-messages.hl7",
   EXTENSION: "hl7",
   SFTP_HOST: process.env.EXTERNAL_IP,
-  USERNAME: "testuser",
-  PASSWORD: "Secret123"
+  USERNAME: "testuser1",
+  PASSWORD: "Secret123",
+  PORT: 22
 };
 const sftp = new Client();
-//const fs = require("node:fs/promises");
 
 function randomString(L) {
   L = L || 18;
@@ -35,6 +35,7 @@ function usage() {
   console.log(`  -H SFTP_HOST     default is ${defaults.SFTP_HOST}`);
   console.log(`  -u USERNAME      default is ${defaults.USERNAME}`);
   console.log(`  -p PASSWORD      default is ${defaults.PASSWORD}`);
+  console.log(`  -P PORT          default is ${defaults.PORT}`);
   console.log(
     `  -f SOURCE_FILE   use the specified file as the source (default is ${defaults.SOURCE_FILE}).`
   );
@@ -68,6 +69,9 @@ async function main(args) {
       case "-p":
         expecting = "PASSWORD";
         break;
+      case "-P":
+        expecting = "PORT";
+        break;
 
       default:
         if (!expecting) {
@@ -82,7 +86,7 @@ async function main(args) {
 
   const config = {
     host: options.SFTP_HOST,
-    port: 22,
+    port: options.PORT,
     username: options.USERNAME,
     password: options.PASSWORD
   };

@@ -17,6 +17,4 @@
 export GCP_PROJECT="my-project-id-20932"
 export GCS_REGION="us-west1"
 export GCE_VM_ZONE="us-west1-b"
-
-## do not change things below this line
-export EXAMPLE_NAME="sftp-example"
+export EXAMPLE_PREFIX="example"

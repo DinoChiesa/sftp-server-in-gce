@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-EXAMPLE_NAME="${EXAMPLE_PREFIX}-sftp"
+EXAMPLE_NAME="${EXAMPLE_PREFIX}-sftpgo"
 TIMESTAMP=$(date '+%Y%m%d-%H%M%S')
 # shellcheck disable=SC2002
 rand_string=$(cat /dev/urandom | LC_CTYPE=C tr -cd '[:alnum:]' | head -c 6 | tr '[:upper:]' '[:lower:]')
 VM_SA="${EXAMPLE_NAME}-${rand_string}"
-FULL_SA_EMAIL="${VM_SA}@${GCP_PROJECT}.iam.gserviceaccount.com"
 VM_TAG="${EXAMPLE_NAME}"
+FULL_SA_EMAIL="${VM_SA}@${GCP_PROJECT}.iam.gserviceaccount.com"
 BUCKET_NAME="${EXAMPLE_NAME}-bucket"
 PUBSUB_TOPIC="${EXAMPLE_NAME}-topic"
 FWALL_PREFIX="${EXAMPLE_NAME}-allow-"
@@ -28,7 +28,6 @@ VM_INSTANCE_NAME="${EXAMPLE_NAME}-instance-${rand_string}-${TIMESTAMP}"
 SA_REQUIRED_ROLES=("roles/storage.objectViewer" "roles/storage.objectCreator" "roles/storage.objectUser")
 # not needed: roles/storage.objectAdmin
 SFTP_USER="testuser"
-SFTP_PASS="Secret123"
 
 check_and_maybe_create_gcs_bucket() {
     printf "Checking GCS bucket (%s)...\n" "gs://${BUCKET_NAME}"
@@ -87,6 +86,9 @@ check_and_maybe_create_sa() {
 create_vm_instance() {
     echo "$VM_INSTANCE_NAME" >./.vm_instance_name
 
+    #local SUBNET="subnet1"
+    # inquire the network
+    #local REGION=${GCE_VM_ZONE::-2}
     local REGION="${GCE_VM_ZONE%??}"
 
     local SUBNET=$(gcloud compute networks subnets list --filter="region:(  ${REGION} ) stack_type:(IPV4_ONLY)" --project="$GCP_PROJECT" --format="value[](name)" | head -1)
@@ -134,7 +136,7 @@ create_firewall_rules() {
             --direction=INGRESS --priority=1000 \
             --network="${NETWORK_TO_USE}" \
             --action=ALLOW \
-            --rules=tcp:22,tcp:60000-65535 \
+            --rules=tcp:22,tcp:2022,tcp:8080,tcp:60000-65535 \
             --source-ranges=0.0.0.0/0 \
             --target-tags="${VM_TAG}"
     fi
@@ -144,7 +146,7 @@ create_firewall_rules() {
     if gcloud compute firewall-rules describe "${RULENAME}" --project="$GCP_PROJECT" --quiet >"$OUTFILE" 2>&1; then
         printf "That rule already exists.\n"
     else
-        printf "Creating firewall ingress rule (%s)...\n" "${VM_INSTANCE_NAME}"
+        printf "Creating firewall egress rule (%s)...\n" "${VM_INSTANCE_NAME}"
         gcloud compute firewall-rules create "${RULENAME}" --project="${GCP_PROJECT}" \
             --direction=EGRESS --priority=1000 \
             --network="${NETWORK_TO_USE}" \
@@ -164,41 +166,46 @@ sudo apt-get clean all
 EOF
 }
 
-install_sftp() {
-    printf "adding group and user...\n"
+install_sftpgo() {
+    printf "Installing up stfpgo...\n"
+    # must preface $ with backslash to prevent interpretation by THIS shell
     gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
         --command="bash -s" <<EOF
-sudo groupadd sftp_grp
-sudo useradd -m -G sftp_grp -s /usr/sbin/nologin ${SFTP_USER}
-printf "%s\n%s" "${SFTP_PASS}" "${SFTP_PASS}" | sudo passwd ${SFTP_USER}
-sudo chown root:root /home/${SFTP_USER}
-sudo chmod 755 /home/${SFTP_USER}
-sudo mkdir /home/${SFTP_USER}/uploads
-sudo chown ${SFTP_USER}:sftp_grp /home/${SFTP_USER}/uploads
+[[ -f /usr/share/keyrings/sftpgo-archive-keyring.gpg ]] && sudo rm -f /usr/share/keyrings/sftpgo-archive-keyring.gpg
+curl -sS https://ftp.osuosl.org/pub/sftpgo/apt/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/sftpgo-archive-keyring.gpg
+RELEASE_CODENAME=\$(lsb_release -c -s)
+echo "deb https://ftp.osuosl.org/pub/sftpgo/apt \${RELEASE_CODENAME} main" | sudo tee /etc/apt/sources.list.d/sftpgo.list
+cat /usr/share/keyrings/sftpgo-archive-keyring.gpg | sudo apt-key add -
+sudo apt-get update
+sudo apt install -y sftpgo
+sudo systemctl stop sftpgo
 EOF
 
-    # Here, we need to modify the “/etc/ssh/sshd_config“ file, to comment out
-    # some stuff, and add other lines.  But automating that is a bit of a task.
-    # A better approach may be to just forcibly copy over the existing file with a "known good" file.
+    printf "Setting up configuration for stfpgo...\n"
+    gcloud compute scp ./config/sftpgo-initial-config.json "${VM_INSTANCE_NAME}":/tmp/sftpgo-initial-config.json --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}"
+    gcloud compute scp ./config/sftpgo-initial-users.json "${VM_INSTANCE_NAME}":/tmp/sftpgo-initial-users.json --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}"
 
-    printf "copying sshd config file...\n"
-    # must copy in two steps, because root access via scp is not possible
-    gcloud compute scp ./config/modified-sshd-config.txt "${VM_INSTANCE_NAME}":~/ --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}"
     gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
-        --command "sudo cp ~/modified-sshd-config.txt /etc/ssh/sshd_config"
+        --command="bash -s" <<EOF
+sudo cp /tmp/sftpgo-initial-config.json /etc/sftpgo/sftpgo.json
+sudo chmod 644 /etc/sftpgo/sftpgo.json
+sudo cp /tmp/sftpgo-initial-users.json /etc/sftpgo/users-store.json
+sudo chmod 644 /etc/sftpgo/users-store.json
+sudo mkdir -p /srv/sftpgo/data/${SFTP_USER}
+sudo chown sftpgo:sftpgo /srv/sftpgo/data/${SFTP_USER}
+sudo chmod 755 /srv/sftpgo/data/${SFTP_USER}
+sudo mkdir /srv/sftpgo/data/${SFTP_USER}/gcs
+sudo chown sftpgo:sftpgo /srv/sftpgo/data/${SFTP_USER}/gcs
+sudo chmod 755 /srv/sftpgo/data/${SFTP_USER}/gcs
+sudo systemctl start sftpgo
+EOF
 
-    # make the changes effective now
-    printf "restarting sshd to make those changes effective...\n"
-    gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
-        --command 'sudo systemctl restart sshd &'
 }
 
 install_gcsfuse() {
     printf "Setting up gcsfuse...\n"
     gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
         --command="bash -s" <<EOF
-sudo mkdir /home/${SFTP_USER}/gcs
-sudo chown ${SFTP_USER}:sftp_grp /home/${SFTP_USER}/gcs
 RELEASE_CODENAME=\$(lsb_release -c -s)
 echo "deb https://packages.cloud.google.com/apt gcsfuse-\${RELEASE_CODENAME} main" | sudo tee /etc/apt/sources.list.d/gcsfuse.list
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
@@ -208,7 +215,7 @@ EOF
 
     printf "mounting gcs via gcsfuse...\n"
     gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
-        --command "sudo gcsfuse -o allow_other  --file-mode=555 --dir-mode=777  ${BUCKET_NAME} /home/${SFTP_USER}/gcs"
+        --command "sudo gcsfuse -o allow_other  --file-mode=555 --dir-mode=777  ${BUCKET_NAME} /srv/sftpgo/data/${SFTP_USER}/gcs"
 }
 
 get_external_ip() {
@@ -219,7 +226,7 @@ MISSING_ENV_VARS=()
 [[ -z "$GCP_PROJECT" ]] && MISSING_ENV_VARS+=('GCP_PROJECT')
 [[ -z "$GCE_VM_ZONE" ]] && MISSING_ENV_VARS+=('GCE_VM_ZONE')
 [[ -z "$GCS_REGION" ]] && MISSING_ENV_VARS+=('GCS_REGION')
-[[ -z "$EXAMPLE_NAME" ]] && MISSING_ENV_VARS+=('EXAMPLE_NAME')
+[[ -z "$EXAMPLE_PREFIX" ]] && MISSING_ENV_VARS+=('EXAMPLE_PREFIX')
 
 [[ ${#MISSING_ENV_VARS[@]} -ne 0 ]] && {
     printf -v joined '%s,' "${MISSING_ENV_VARS[@]}"
@@ -229,7 +236,7 @@ MISSING_ENV_VARS=()
 
 OUTFILE=$(mktemp /tmp/appint-samples.gcloud.out.XXXXXX)
 
-printf "\n\nSetup for an SFTP Server Example in GCE.\n\n"
+printf "\n\nSetup for an SFTPGo Server Example in GCE.\n\n"
 check_and_maybe_create_gcs_bucket
 check_and_maybe_create_sa
 create_vm_instance
@@ -237,7 +244,7 @@ create_firewall_rules
 printf "Waiting a bit until we can SSH into the machine.....\n"
 sleep 16
 apt_update
-install_sftp
+install_sftpgo
 install_gcsfuse
 get_external_ip
 
@@ -245,4 +252,5 @@ printf "\n\nOK. You can now connect into the machine in these ways:\n"
 printf " export EXTERNAL_IP=\"${EXTERNAL_IP}\"\n"
 printf " export VM_INSTANCE_NAME=\"${VM_INSTANCE_NAME}\"\n\n"
 printf " gcloud compute ssh \"\${VM_INSTANCE_NAME}\" --project=\"\${GCP_PROJECT}\" --zone=\"\${GCE_VM_ZONE}\"\n\n"
-printf " sftp -oPort=22 ${SFTP_USER}@\${EXTERNAL_IP}\n\n"
+printf " http://${EXTERNAL_IP}:8080/web/admin\n\n"
+printf " sftp -oPort=2022 ${SFTP_USER}@${EXTERNAL_IP}\n\n"
