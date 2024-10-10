@@ -45,10 +45,15 @@ GCP project; there is a cleanup script that removes all of the configuration the
 setup script creates.
 
 
-1. Using a text editor, modify the [`env.sh`](./env.sh) file, setting your own
+1. Using a text editor, modify the [`env.sh`](./env.sh) file, specifying your own
    project, region, and zone.
 
-2. Run the setup script
+2. Source the file, to set the environment variables into your shell.
+   ```
+   source ./env.sh
+   ```
+
+3. Run the setup script
    ```
    ./setup-sftp-server-example.sh
    ```
@@ -134,25 +139,22 @@ To use this, you need
 installed on your machine. If you use [Google Cloud
 Shell](https://cloud.google.com/shell/docs), those things are already installed.
 
+You need to install the pre-reqs for the nodejs script:
+
 ```
 cd data
 npm install
+```
+
+Then, run the script to _put_ the HL7 batch file into the SFTP server:
+
+```
 node ./put-one.js
 ```
 
-This will _put_ the HL7 batch file:
+This will _put_ a different HL7 file, one that contains a single message:
 
 ```
-cd data
-npm install
-node ./put-one.js
-```
-
-This will _put_ a different HL7 file, with a single message:
-
-```
-cd data
-npm install
 node ./put-one.js -f single-message-example1.hl7
 ```
 
