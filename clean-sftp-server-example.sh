@@ -14,14 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-EXAMPLE_NAME="sftp-server-example"
-
 TIMESTAMP=$(date '+%Y%m%d-%H%M%S')
 VM_SA_PREFIX="${EXAMPLE_NAME}-"
 BUCKET_PREFIX="${EXAMPLE_NAME}-"
 PS_TOPIC_PREFIX="${EXAMPLE_NAME}-"
-VM_INSTANCE_PREFIX="sftp-example-instance-"
-FWALL_PREFIX="sftp-example-allow-"
+VM_INSTANCE_PREFIX="${EXAMPLE_NAME}-instance-"
+FWALL_PREFIX="${EXAMPLE_NAME}-allow-"
 
 remove_gce_vm() {
     printf "Checking for VM instances like (%s*)\n" "${VM_INSTANCE_PREFIX}"
@@ -71,7 +69,7 @@ remove_gcs_bucket() {
 }
 
 remove_pubsub_topic() {
-    printf "Checking for pubsub topics buckets like (%s*)\n" "${PS_TOPIC_PREFIX}"
+    printf "Checking for pubsub topics like (%s*)\n" "${PS_TOPIC_PREFIX}"
     # shellcheck disable=SC2207
     ARR=($(gcloud pubsub topics list --project="$GCP_PROJECT" --quiet --format='value[](name)' | grep "$PS_TOPIC_PREFIX"))
     if [[ ${#ARR[@]} -gt 0 ]]; then
@@ -103,6 +101,7 @@ MISSING_ENV_VARS=()
 [[ -z "$GCP_PROJECT" ]] && MISSING_ENV_VARS+=('GCP_PROJECT')
 [[ -z "$GCE_VM_ZONE" ]] && MISSING_ENV_VARS+=('GCE_VM_ZONE')
 [[ -z "$GCS_REGION" ]] && MISSING_ENV_VARS+=('GCS_REGION')
+[[ -z "$EXAMPLE_NAME" ]] && MISSING_ENV_VARS+=('EXAMPLE_NAME')
 
 [[ ${#MISSING_ENV_VARS[@]} -ne 0 ]] && {
     printf -v joined '%s,' "${MISSING_ENV_VARS[@]}"

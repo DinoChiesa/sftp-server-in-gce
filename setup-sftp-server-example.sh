@@ -14,9 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-EXAMPLE_NAME="sftp-server-example"
-VM_TAG="sftp-example"
-
 TIMESTAMP=$(date '+%Y%m%d-%H%M%S')
 # creating and deleting the SA repeatedly causes problems?
 # So I need to introduce a random factor into the SA name.
@@ -24,8 +21,10 @@ TIMESTAMP=$(date '+%Y%m%d-%H%M%S')
 rand_string=$(cat /dev/urandom | LC_CTYPE=C tr -cd '[:alnum:]' | head -c 6 | tr '[:upper:]' '[:lower:]')
 VM_SA="${EXAMPLE_NAME}-${rand_string}"
 FULL_SA_EMAIL="${VM_SA}@${GCP_PROJECT}.iam.gserviceaccount.com"
+VM_TAG="${EXAMPLE_NAME}"
 BUCKET_NAME="${EXAMPLE_NAME}-bucket"
 PUBSUB_TOPIC="${EXAMPLE_NAME}-topic"
+FWALL_PREFIX="${EXAMPLE_NAME}-allow-"
 VM_INSTANCE_NAME="sftp-example-instance-${rand_string}-${TIMESTAMP}"
 SA_REQUIRED_ROLES=("roles/storage.objectViewer" "roles/storage.objectCreator" "roles/storage.objectUser")
 # not needed: roles/storage.objectAdmin
@@ -117,8 +116,8 @@ create_vm_instance() {
 }
 
 create_firewall_rules() {
-    local RULENAME="sftp-example-allow-ingress"
-    # TODO: inquire the default network
+    local RULENAME="${FWALL_PREFIX}ingress"
+    # inquire the default network
     local NETWORK_TO_USE=$(gcloud compute networks list --project=$GCP_PROJECT --format="value[](name)" | head -1)
     printf "Checking firewall ingress rule (%s)...\n" "${RULENAME}"
     if gcloud compute firewall-rules describe "${RULENAME}" --project="$GCP_PROJECT" --quiet >"$OUTFILE" 2>&1; then
@@ -134,7 +133,7 @@ create_firewall_rules() {
             --target-tags="${VM_TAG}"
     fi
 
-    RULENAME="sftp-example-allow-egress"
+    RULENAME="${FWALL_PREFIX}egress"
     printf "Checking firewall egress rule (%s)...\n" "${RULENAME}"
     if gcloud compute firewall-rules describe "${RULENAME}" --project="$GCP_PROJECT" --quiet >"$OUTFILE" 2>&1; then
         printf "That rule already exists.\n"
@@ -150,37 +149,31 @@ create_firewall_rules() {
     fi
 }
 
+apt_update() {
+    printf "apt update...\n"
+    gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
+        --command="bash -s" <<EOF
+sudo apt update
+sudo apt-get clean all
+EOF
+
+    #&& sudo groupadd sftp_grp && sudo useradd -m -G sftp_grp -s /usr/sbin/nologin ${SFTP_USER}"
+
+    # printf "setting user password...\n"
+    # gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
+    #     --command "printf \"${SFTP_PASS}\n${SFTP_PASS}\" | sudo passwd ${SFTP_USER}"
+}
+
 install_sftp() {
-    printf "Waiting a bit until we can SSH into the machine.....\n"
-    sleep 12
 
     printf "Running commands via ssh on that machine...\n"
     printf "adding group and user...\n"
     gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
-        --command "sudo apt update && sudo groupadd sftp_grp && sudo useradd -m -G sftp_grp -s /usr/sbin/nologin ${SFTP_USER}"
+        --command "sudo groupadd sftp_grp && sudo useradd -m -G sftp_grp -s /usr/sbin/nologin ${SFTP_USER}"
 
     printf "setting user password...\n"
     gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
         --command "printf \"${SFTP_PASS}\n${SFTP_PASS}\" | sudo passwd ${SFTP_USER}"
-
-    # Here, we need to modify the “/etc/ssh/sshd_config“ file, to comment out
-    # some stuff, and add other lines.  But automating that is a bit of a task.
-    # A better approach may be to just forcibly copy over the existing file with a "known good" file.
-
-    # #Comment Out Below line and a new line
-    # #PasswordAuthentication no
-    # PasswordAuthentication yes
-
-    # #Comment Out Below line and a new line
-    # #Subsystem      sftp    /usr/lib/openssh/sftp-server
-    # Subsystem       sftp    internal-sftp
-
-    # #Add following lines to end of file.
-    # Match Group sftp_users
-    # ChrootDirectory %h
-    # ForceCommand internal-sftp
-    # AllowTcpForwarding no
-    # X11Forwarding no
 
     printf "setting permissions on user home directory...\n"
     gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
@@ -189,6 +182,10 @@ install_sftp() {
     printf "creating uploads directory...\n"
     gcloud compute ssh "${VM_INSTANCE_NAME}" --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}" \
         --command "sudo mkdir /home/${SFTP_USER}/uploads && sudo chown ${SFTP_USER}:sftp_grp /home/${SFTP_USER}/uploads"
+
+    # Here, we need to modify the “/etc/ssh/sshd_config“ file, to comment out
+    # some stuff, and add other lines.  But automating that is a bit of a task.
+    # A better approach may be to just forcibly copy over the existing file with a "known good" file.
 
     printf "copying sshd config file...\n"
     #gcloud compute scp ./config/modified-sshd-config.txt "${VM_INSTANCE_NAME}":/etc/ssh/sshd_config --project="$GCP_PROJECT" --zone="${GCE_VM_ZONE}"
@@ -219,7 +216,8 @@ install_gcsfuse() {
         --command="bash -s" <<EOF
 sudo mkdir /home/${SFTP_USER}/gcs
 sudo chown ${SFTP_USER}:sftp_grp /home/${SFTP_USER}/gcs
-echo "deb https://packages.cloud.google.com/apt gcsfuse-$(lsb_release -c -s) main" | sudo tee /etc/apt/sources.list.d/gcsfuse.list
+RELEASE_CODENAME=\$(lsb_release -c -s)
+echo "deb https://packages.cloud.google.com/apt gcsfuse-\${RELEASE_CODENAME} main" | sudo tee /etc/apt/sources.list.d/gcsfuse.list
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
 sudo apt-get update
 sudo apt install -y fuse gcsfuse
@@ -238,6 +236,7 @@ MISSING_ENV_VARS=()
 [[ -z "$GCP_PROJECT" ]] && MISSING_ENV_VARS+=('GCP_PROJECT')
 [[ -z "$GCE_VM_ZONE" ]] && MISSING_ENV_VARS+=('GCE_VM_ZONE')
 [[ -z "$GCS_REGION" ]] && MISSING_ENV_VARS+=('GCS_REGION')
+[[ -z "$EXAMPLE_NAME" ]] && MISSING_ENV_VARS+=('EXAMPLE_NAME')
 
 [[ ${#MISSING_ENV_VARS[@]} -ne 0 ]] && {
     printf -v joined '%s,' "${MISSING_ENV_VARS[@]}"
@@ -252,6 +251,9 @@ check_and_maybe_create_gcs_bucket
 check_and_maybe_create_sa
 create_vm_instance
 create_firewall_rules
+printf "Waiting a bit until we can SSH into the machine.....\n"
+sleep 12
+apt_update
 install_sftp
 install_gcsfuse
 get_external_ip

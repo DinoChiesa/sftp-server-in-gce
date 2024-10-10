@@ -178,9 +178,9 @@ and configure the trigger to be invoked with a specific service account.
 That service account must have `pubsub.viewer` role on the topic. To set that up, you can use the following:
 
 ```
-TOPIC="projects/$GCP_PROJECT}/topics/sftp-server-example-topic"
+TOPIC="projects/${GCP_PROJECT}/topics/sftp-server-example-topic"
 INT_SA="integration-runner-1"
-INT_SA_FULL=${INT_SA}@${GCP_PROJECT}.iam.gserviceaccount.com"
+INT_SA_FULL="${INT_SA}@${GCP_PROJECT}.iam.gserviceaccount.com"
 gcloud iam service-accounts create "$INT_SA" --project="$GCP_PROJECT" --quiet
 gcloud pubsub topics add-iam-policy-binding ${TOPIC} \
   --member="serviceAccount:${INT_SA_FULL}" --role='roles/pubsub.viewer'
