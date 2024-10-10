@@ -25,6 +25,7 @@ rand_string=$(cat /dev/urandom | LC_CTYPE=C tr -cd '[:alnum:]' | head -c 6 | tr 
 VM_SA="${EXAMPLE_NAME}-${rand_string}"
 FULL_SA_EMAIL="${VM_SA}@${GCP_PROJECT}.iam.gserviceaccount.com"
 BUCKET_NAME="${EXAMPLE_NAME}-bucket"
+PUBSUB_TOPIC="${EXAMPLE_NAME}-topic"
 VM_INSTANCE_NAME="sftp-example-instance-${rand_string}-${TIMESTAMP}"
 SA_REQUIRED_ROLES=("roles/storage.objectViewer" "roles/storage.objectCreator" "roles/storage.objectUser")
 # not needed: roles/storage.objectAdmin
@@ -37,8 +38,10 @@ check_and_maybe_create_gcs_bucket() {
         printf "That bucket already exists.\n"
     else
         printf "Creating the bucket...\n"
-
         gcloud storage buckets create "gs://${BUCKET_NAME}" --default-storage-class=standard --location="${GCS_REGION}" --project="$GCP_PROJECT" --quiet >"$OUTFILE" 2>&1
+        # The following sets up a notification to pubsub on object finalization.
+        # If the topic doesn't exist in the GCP project, this command creates it.
+        gcloud storage buckets notifications create "gs://${BUCKET_NAME}" --topic="${PUBSUB_TOPIC}" --project="$GCP_PROJECT" --quiet --event-types="OBJECT_FINALIZE" >"$OUTFILE" 2>&1
     fi
 }
 

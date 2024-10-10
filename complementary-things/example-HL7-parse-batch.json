@@ -1,0 +1,483 @@
+{
+  "description": "Accepts as input, an HL\u0026 message (batch) framed with FHS and BHS, and parses it into individual messages.",
+  "updateTime": "2024-10-10T01:49:56.246Z",
+  "createTime": "2024-10-10T01:40:43.926Z",
+  "triggerConfigs": [{
+    "label": "API Trigger",
+    "startTasks": [{
+      "taskId": "11"
+    }],
+    "properties": {
+      "Trigger name": "Process-HL7-FHS-1_API_1"
+    },
+    "triggerType": "API",
+    "triggerNumber": "2",
+    "triggerId": "api_trigger/Process-HL7-FHS-1_API_1",
+    "position": {
+      "x": 960,
+      "y": 42
+    }
+  }, {
+    "label": "Pub/Sub Trigger - new file in the GCS bucket",
+    "startTasks": [{
+      "taskId": "2"
+    }],
+    "properties": {
+      "IP Project name": "dchiesa-argolis-2",
+      "Subscription name": "dchiesa-argolis-2_sftp-server-example-topic",
+      "Service account": "integration-runner-1@dchiesa-argolis-2.iam.gserviceaccount.com"
+    },
+    "triggerType": "CLOUD_PUBSUB_EXTERNAL",
+    "triggerNumber": "1",
+    "triggerId": "cloud_pubsub_external_trigger/projects/dchiesa-argolis-2/subscriptions/dchiesa-argolis-2_sftp-server-example-topic",
+    "position": {
+      "x": 324,
+      "y": 42
+    }
+  }],
+  "taskConfigs": [{
+    "task": "JavaScriptTask",
+    "taskId": "1",
+    "parameters": {
+      "script": {
+        "key": "script",
+        "value": {
+          "stringValue": "\n/**\n * Function that is called during the JavaScript Task execution.\n * @param {IntegrationEvent} event\n */\n\nfunction executeScript(event) {\n  var json \u003d JSON.parse(event.getParameter(\"dataJson\"));\n  var payload \u003d {\n    type: typeof json,\n    Bucket: json.bucket || \"default\",\n    ObjectFilePath: json.id ? json.id.split(\"/\")[1] : \"object-name\"\n  };\n  // ignore files that do not end with .hl7\n  if (payload.ObjectFilePath.toLowerCase().endsWith(\".hl7\")) {\n    event.log(\u0027setting connectorInputPayload...\u0027);\n    event.setParameter(\"`Task_4_connectorInputPayload`\", payload);\n  }\n}\n"
+        }
+      }
+    },
+    "nextTasks": [{
+      "taskId": "10",
+      "condition": "does_not_exist($`Task_4_connectorInputPayload`$)"
+    }, {
+      "taskId": "4",
+      "condition": "exists($`Task_4_connectorInputPayload`$)"
+    }],
+    "taskExecutionStrategy": "WHEN_ALL_SUCCEED",
+    "displayName": "JS - check file extension",
+    "externalTaskType": "NORMAL_TASK",
+    "position": {
+      "x": 324,
+      "y": 290
+    }
+  }, {
+    "task": "EmailTask",
+    "taskId": "10",
+    "parameters": {
+      "Cc": {
+        "key": "Cc",
+        "value": {
+          "stringArray": {
+          }
+        }
+      },
+      "TextBody": {
+        "key": "TextBody",
+        "value": {
+          "stringValue": "Hi, \nThe uploaded file at $mediaLink$ is not an HL7 file.\n\n-the Mgmt"
+        }
+      },
+      "Bcc": {
+        "key": "Bcc",
+        "value": {
+          "stringArray": {
+          }
+        }
+      },
+      "AttachmentPath": {
+        "key": "AttachmentPath",
+        "value": {
+          "stringArray": {
+          }
+        }
+      },
+      "ThrowNoRequiredInputException": {
+        "key": "ThrowNoRequiredInputException",
+        "value": {
+          "booleanValue": true
+        }
+      },
+      "To": {
+        "key": "To",
+        "value": {
+          "stringArray": {
+            "stringValues": ["example.person+appint@gmail.com"]
+          }
+        }
+      },
+      "Subject": {
+        "key": "Subject",
+        "value": {
+          "stringValue": "An Unknown file type was uploaded"
+        }
+      },
+      "BodyFormat": {
+        "key": "BodyFormat",
+        "value": {
+          "stringValue": "text"
+        }
+      },
+      "EmailConfigInput": {
+        "key": "EmailConfigInput",
+        "value": {
+          "jsonValue": "{\n  \"@type\": \"type.googleapis.com/enterprise.crm.eventbus.proto.EmailConfig\"\n}"
+        }
+      }
+    },
+    "taskExecutionStrategy": "WHEN_ALL_SUCCEED",
+    "displayName": "Send Email - not an HL7 file",
+    "externalTaskType": "NORMAL_TASK",
+    "position": {
+      "x": 112,
+      "y": 414
+    }
+  }, {
+    "task": "FieldMappingTask",
+    "taskId": "11",
+    "parameters": {
+      "FieldMappingConfigTaskParameterKey": {
+        "key": "FieldMappingConfigTaskParameterKey",
+        "value": {
+          "jsonValue": "{\n  \"@type\": \"type.googleapis.com/enterprise.crm.eventbus.proto.FieldMappingConfig\",\n  \"mappedFields\": [{\n    \"inputField\": {\n      \"fieldType\": \"STRING_VALUE\",\n      \"transformExpression\": {\n        \"initialValue\": {\n          \"baseFunction\": {\n            \"functionType\": {\n              \"baseFunction\": {\n                \"functionName\": \"GET_EXECUTION_ID\"\n              }\n            }\n          }\n        }\n      }\n    },\n    \"outputField\": {\n      \"referenceKey\": \"$sub_execution_id$\",\n      \"fieldType\": \"STRING_VALUE\",\n      \"cardinality\": \"OPTIONAL\"\n    }\n  }, {\n    \"inputField\": {\n      \"fieldType\": \"STRING_VALUE\",\n      \"transformExpression\": {\n        \"initialValue\": {\n          \"baseFunction\": {\n            \"functionType\": {\n              \"baseFunction\": {\n                \"functionName\": \"GET_INTEGRATION_NAME\"\n              }\n            }\n          }\n        }\n      }\n    },\n    \"outputField\": {\n      \"referenceKey\": \"$integration_name$\",\n      \"fieldType\": \"STRING_VALUE\",\n      \"cardinality\": \"OPTIONAL\"\n    }\n  }]\n}"
+        }
+      }
+    },
+    "nextTasks": [{
+      "taskId": "9"
+    }],
+    "taskExecutionStrategy": "WHEN_ALL_SUCCEED",
+    "displayName": "DataMap - set some variables",
+    "externalTaskType": "NORMAL_TASK",
+    "position": {
+      "x": 960,
+      "y": 166
+    }
+  }, {
+    "task": "FieldMappingTask",
+    "taskId": "2",
+    "parameters": {
+      "FieldMappingConfigTaskParameterKey": {
+        "key": "FieldMappingConfigTaskParameterKey",
+        "value": {
+          "jsonValue": "{\n  \"@type\": \"type.googleapis.com/enterprise.crm.eventbus.proto.FieldMappingConfig\",\n  \"mappedFields\": [{\n    \"inputField\": {\n      \"fieldType\": \"STRING_VALUE\",\n      \"transformExpression\": {\n        \"initialValue\": {\n          \"referenceValue\": \"$CloudPubSubMessage.data$\"\n        }\n      }\n    },\n    \"outputField\": {\n      \"referenceKey\": \"$dataJson$\",\n      \"fieldType\": \"STRING_VALUE\",\n      \"cardinality\": \"OPTIONAL\"\n    }\n  }, {\n    \"inputField\": {\n      \"fieldType\": \"JSON_VALUE\",\n      \"transformExpression\": {\n        \"initialValue\": {\n          \"referenceValue\": \"$dataJson$\"\n        },\n        \"transformationFunctions\": [{\n          \"functionType\": {\n            \"stringFunction\": {\n              \"functionName\": \"TO_JSON\"\n            }\n          }\n        }, {\n          \"functionType\": {\n            \"jsonFunction\": {\n              \"functionName\": \"GET_PROPERTY\"\n            }\n          },\n          \"parameters\": [{\n            \"initialValue\": {\n              \"literalValue\": {\n                \"stringValue\": \"mediaLink\"\n              }\n            }\n          }]\n        }]\n      }\n    },\n    \"outputField\": {\n      \"referenceKey\": \"$mediaLink$\",\n      \"fieldType\": \"STRING_VALUE\",\n      \"cardinality\": \"OPTIONAL\"\n    }\n  }, {\n    \"inputField\": {\n      \"fieldType\": \"STRING_VALUE\",\n      \"transformExpression\": {\n        \"initialValue\": {\n          \"baseFunction\": {\n            \"functionType\": {\n              \"baseFunction\": {\n                \"functionName\": \"GET_EXECUTION_ID\"\n              }\n            }\n          }\n        }\n      }\n    },\n    \"outputField\": {\n      \"referenceKey\": \"$execution_id$\",\n      \"fieldType\": \"STRING_VALUE\",\n      \"cardinality\": \"OPTIONAL\"\n    }\n  }]\n}"
+        }
+      }
+    },
+    "nextTasks": [{
+      "taskId": "1"
+    }],
+    "taskExecutionStrategy": "WHEN_ALL_SUCCEED",
+    "displayName": "DataMap - extract data from pubsub message",
+    "externalTaskType": "NORMAL_TASK",
+    "position": {
+      "x": 324,
+      "y": 166
+    }
+  }, {
+    "task": "GenericConnectorTask",
+    "taskId": "4",
+    "parameters": {
+      "connectorInputPayload": {
+        "key": "connectorInputPayload",
+        "value": {
+          "stringValue": "$`Task_4_connectorInputPayload`$"
+        }
+      },
+      "connectionName": {
+        "key": "connectionName",
+        "value": {
+          "stringValue": "projects/dchiesa-argolis-2/locations/us-west1/connections/gcs-1"
+        }
+      },
+      "connectorOutputPayload": {
+        "key": "connectorOutputPayload",
+        "value": {
+          "stringValue": "$`Task_4_connectorOutputPayload`$"
+        }
+      },
+      "operation": {
+        "key": "operation",
+        "value": {
+          "stringValue": "EXECUTE_ACTION"
+        }
+      },
+      "connectionVersion": {
+        "key": "connectionVersion",
+        "value": {
+          "stringValue": "projects/dchiesa-argolis-2/locations/global/providers/gcp/connectors/gcs/versions/1"
+        }
+      },
+      "actionName": {
+        "key": "actionName",
+        "value": {
+          "stringValue": "DownloadObject"
+        }
+      }
+    },
+    "nextTasks": [{
+      "taskId": "5"
+    }],
+    "taskExecutionStrategy": "WHEN_ALL_SUCCEED",
+    "displayName": "GCS - Retrieve HL7 file from GCS Bucket",
+    "description": "Retrieve HL7 file from GCS Bucket",
+    "externalTaskType": "NORMAL_TASK",
+    "position": {
+      "x": 536,
+      "y": 414
+    }
+  }, {
+    "task": "JavaScriptTask",
+    "taskId": "5",
+    "parameters": {
+      "script": {
+        "key": "script",
+        "value": {
+          "stringValue": "\n/**\n * Function that is called during the JavaScript Task execution.\n * @param {IntegrationEvent} event\n */\nfunction executeScript(event) {\n  var json \u003d event.getParameter(\"`Task_4_connectorOutputPayload`\");\n  var hl7text \u003d json[0].Content;\n  if (hl7text) {\n    var lines \u003d hl7text.split(\"\\n\");\n    var ignored \u003d [\"FHS\", \"BHS\", \"BTS\", \"FTS\"];\n    var messageList \u003d [];\n    var message \u003d null;\n    lines.forEach(function (line) {\n      var lineId \u003d line.substr(0, 3);\n      if (!ignored.includes(lineId)) {\n        if (lineId \u003d\u003d \"MSH\") {\n          message \u003d [];\n          messageList.push(message);\n        }\n        if (message) {\n          message.push(line);\n        }\n      }\n    });\n\n    var payload \u003d {\n      messages: messageList.map(function (messageLines, ix) {\n        return messageLines.join(\"\\n\");\n      }),\n      indexes: messageList.map(function (messageLines, ix) {\n        return ix+1;\n      }),\n    };\n    event.setParameter(\"hl7_messages_count\", payload.messages.length.toFixed(0));\n\n    //event.setParameter(\"hl7_messages_string\", JSON.stringify(payload, null, 2));\n    event.setParameter(\"hl7_messages\", payload);\n  } else {\n    event.log(\"no hl7text!\");\n  }\n}\n"
+        }
+      }
+    },
+    "nextTasks": [{
+      "taskId": "6"
+    }],
+    "taskExecutionStrategy": "WHEN_ALL_SUCCEED",
+    "displayName": "JS - parse HL7 batch file",
+    "externalTaskType": "NORMAL_TASK",
+    "position": {
+      "x": 536,
+      "y": 538
+    }
+  }, {
+    "task": "SubWorkflowForEachLoopV2Task",
+    "taskId": "6",
+    "parameters": {
+      "iterationElementMapping": {
+        "key": "iterationElementMapping",
+        "value": {
+          "stringValue": "message_index"
+        }
+      },
+      "triggerId": {
+        "key": "triggerId",
+        "value": {
+          "stringValue": "api_trigger/Process-HL7-FHS-1_API_1"
+        }
+      },
+      "aggregatorParameterMapping": {
+        "key": "aggregatorParameterMapping"
+      },
+      "loopMetadata": {
+        "key": "loopMetadata",
+        "value": {
+          "stringArray": {
+            "stringValues": ["$`Task_6_loopMetadata`$"]
+          }
+        }
+      },
+      "disableEucPropagation": {
+        "key": "disableEucPropagation",
+        "value": {
+          "booleanValue": false
+        }
+      },
+      "listToIterate": {
+        "key": "listToIterate",
+        "value": {
+          "stringValue": "$hl7_messages.indexes$"
+        }
+      },
+      "workflowName": {
+        "key": "workflowName",
+        "value": {
+          "stringValue": "Process-HL7-FHS-1"
+        }
+      },
+      "requestParameterMapping": {
+        "key": "requestParameterMapping",
+        "value": {
+          "jsonValue": "{\n  \"@type\": \"type.googleapis.com/enterprise.crm.eventbus.proto.ParameterMap\",\n  \"entries\": [{\n    \"key\": {\n      \"literalValue\": {\n        \"stringValue\": \"hl7_messages\"\n      }\n    },\n    \"value\": {\n      \"literalValue\": {\n        \"stringValue\": \"messages_data\"\n      }\n    }\n  }, {\n    \"key\": {\n      \"literalValue\": {\n        \"stringValue\": \"execution_id\"\n      }\n    },\n    \"value\": {\n      \"literalValue\": {\n        \"stringValue\": \"main_execution_id\"\n      }\n    }\n  }]\n}"
+        }
+      },
+      "overrideParameterMapping": {
+        "key": "overrideParameterMapping"
+      }
+    },
+    "taskExecutionStrategy": "WHEN_ALL_SUCCEED",
+    "displayName": "Loop - over each MSH ",
+    "externalTaskType": "NORMAL_TASK",
+    "position": {
+      "x": 536,
+      "y": 662
+    }
+  }, {
+    "task": "EmailTask",
+    "taskId": "8",
+    "parameters": {
+      "Cc": {
+        "key": "Cc",
+        "value": {
+          "stringArray": {
+          }
+        }
+      },
+      "TextBody": {
+        "key": "TextBody",
+        "value": {
+          "stringValue": "\u003cp\u003eHi\u003c/p\u003e\n\n\u003cp\u003eAn \u003ca href\u003d\u0027https://cloud.google.com/application-integration/docs/overview\u0027\u003eApplication Integration\u003c/a\u003e execution has sent this email.\u003c/p\u003e\n\n$email_prelude$ \n\n\u003cp\u003eHere is record $message_index_as_string$ of $total_message_count$.\u003c/p\u003e\n\n\u003cpre\u003e$hl7_message$\n\u003c/pre\u003e"
+        }
+      },
+      "Bcc": {
+        "key": "Bcc",
+        "value": {
+          "stringArray": {
+          }
+        }
+      },
+      "AttachmentPath": {
+        "key": "AttachmentPath",
+        "value": {
+          "stringArray": {
+          }
+        }
+      },
+      "ThrowNoRequiredInputException": {
+        "key": "ThrowNoRequiredInputException",
+        "value": {
+          "booleanValue": true
+        }
+      },
+      "To": {
+        "key": "To",
+        "value": {
+          "stringArray": {
+            "stringValues": ["example.person+appint@gmail.com"]
+          }
+        }
+      },
+      "Subject": {
+        "key": "Subject",
+        "value": {
+          "stringValue": "MSH record  $message_index_as_string$ of $total_message_count$ [exec: $main_execution_id$]"
+        }
+      },
+      "BodyFormat": {
+        "key": "BodyFormat",
+        "value": {
+          "stringValue": "html"
+        }
+      },
+      "EmailConfigInput": {
+        "key": "EmailConfigInput",
+        "value": {
+          "jsonValue": "{\n  \"@type\": \"type.googleapis.com/enterprise.crm.eventbus.proto.EmailConfig\"\n}"
+        }
+      }
+    },
+    "taskExecutionStrategy": "WHEN_ALL_SUCCEED",
+    "displayName": "Send Email - one HL7 message",
+    "externalTaskType": "NORMAL_TASK",
+    "position": {
+      "x": 960,
+      "y": 414
+    }
+  }, {
+    "task": "JavaScriptTask",
+    "taskId": "9",
+    "parameters": {
+      "script": {
+        "key": "script",
+        "value": {
+          "stringValue": "\n/**\n * Function that is called during the JavaScript Task execution.\n * @param {IntegrationEvent} event\n */\n\nfunction executeScript(event) {\n  // get the iteration number. This is invoked by a ForEach, the data i s an index.\n  var index \u003d event.getParameter(\"message_index\");\n  event.setParameter(\"message_index_as_string\", index.toFixed(0)); //this is a string with zero decimal digits\n  var data \u003d event.getParameter(\"messages_data\");\n  if (data \u0026\u0026 data.messages) {\n    var a \u003d data.messages;\n    event.setParameter(\"total_message_count\", data.messages.length.toFixed(0));\n    if (a \u0026\u0026 a[index - 1]) {\n      event.setParameter(\"hl7_message\", a[index - 1]);\n      if (index \u003d\u003d 1) {\n        event.setParameter(\n          \"email_prelude\",\n          \"\u003cp\u003eThere\u0027s an SFTP server running in GCE. It uses a\\n\" +\n            \"\u003ca href\u003d\u0027https://cloud.google.com/storage/docs/introduction\u0027\u003eGoogle Cloud\\n\" +\n            \"Storage\u003c/a\u003e bucket mounted in the filesystem as the upload directory. When a\\n\" +\n            \"client application uploads an HL7 file via SFTP, \u003c/p\u003e\\n\" +\n            \"\\n\" +\n            \"\u003col\u003e\\n\" +\n            \"\u003cli\u003eThe SFTP server writes the file as a new object into the configured GCS bucket\u003c/li\u003e\\n\" +\n            \"\u003cli\u003eGCS publishes a notification to a configured PubSub topic.\u003c/li\u003e\\n\" +\n            \"\u003cli\u003eThat triggers the Application Integration flow.\u003c/li\u003e\\n\" +\n            \"\u003cli\u003eThe integration reads the file from the GCS bucket.\u003c/li\u003e\\n\" +\n            \"\u003cli\u003eIt then parses the batch HL7 file into multiple distinct Messages.\u003c/li\u003e\\n\" +\n            \"\u003cli\u003eand then sends an email for each distinct Message.\u003c/li\u003e\\n\" +\n            \"\u003c/ol\u003e\\n\"\n        );\n      } else {\n        event.setParameter(\"email_prelude\", \"\");\n      }\n    } else {\n      event.log(\"did not find messages array\");\n    }\n  }\n}\n"
+        }
+      }
+    },
+    "nextTasks": [{
+      "taskId": "8"
+    }],
+    "taskExecutionStrategy": "WHEN_ALL_SUCCEED",
+    "displayName": "JS - set HL7 message, and email prelude",
+    "externalTaskType": "NORMAL_TASK",
+    "position": {
+      "x": 960,
+      "y": 290
+    }
+  }],
+  "integrationParameters": [{
+    "key": "CloudPubSubMessage",
+    "dataType": "JSON_VALUE",
+    "displayName": "CloudPubSubMessage",
+    "isTransient": true,
+    "producer": "2_1",
+    "jsonSchema": "{\n  \"$schema\": \"http://json-schema.org/draft-04/schema#\",\n  \"type\": \"object\",\n  \"title\": \"Cloud Pub/Sub Message\",\n  \"description\": \"Message received by Cloud Pub/Sub.\",\n  \"properties\": {\n    \"data\": {\n      \"type\": \"string\",\n      \"description\": \"The message data sent by the publisher\"\n    },\n    \"attributes\": {\n      \"type\": \"object\",\n      \"description\": \"Attributes for this message\"\n    },\n    \"messageId\": {\n      \"type\": \"string\",\n      \"description\": \"ID of this message, assigned by the server when the message is published. Guaranteed to be unique within the topic.\"\n    },\n    \"publishTime\": {\n      \"type\": \"string\",\n      \"description\": \"The time at which the message was published, populated by the server when it receives the topics.publish call\"\n    },\n    \"orderingKey\": {\n      \"type\": \"string\",\n      \"description\": \"Identifies related messages for which publish order should be respected.\"\n    }\n  }\n}"
+  }, {
+    "key": "dataJson",
+    "dataType": "STRING_VALUE",
+    "displayName": "dataJson",
+    "inputOutputType": "OUT"
+  }, {
+    "key": "`Task_4_connectorInputPayload`",
+    "dataType": "JSON_VALUE",
+    "displayName": "`Task_4_connectorInputPayload`",
+    "producer": "1_4",
+    "jsonSchema": "{\n  \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"Bucket\": {\n      \"type\": \"string\",\n      \"description\": \"Bucket name where the object is located.\"\n    },\n    \"ObjectFilePath\": {\n      \"type\": [\"string\", \"null\"],\n      \"description\": \"Object name for the object that should be retrieved. If not specified, all the objects from the specified bucket will be retrieved.\"\n    },\n    \"HasBytes\": {\n      \"type\": [\"boolean\", \"null\"],\n      \"description\": \"Whether to download content as bytes.\",\n      \"default\": false\n    },\n    \"UpdatedEndDate\": {\n      \"type\": [\"string\", \"null\"],\n      \"description\": \"The end of the date range to download objects. If not specified, objects will be downloaded from the specified UpdatedStartDate until the present day.\"\n    },\n    \"UpdatedStartDate\": {\n      \"type\": [\"string\", \"null\"],\n      \"description\": \"The start of the date range to download objects. If not specified, objects will be downloaded from the beginning of the time until the UpdatedEndDate.\"\n    }\n  },\n  \"required\": [\"Bucket\"]\n}"
+  }, {
+    "key": "`Task_4_connectorOutputPayload`",
+    "dataType": "JSON_VALUE",
+    "displayName": "`Task_4_connectorOutputPayload`",
+    "isTransient": true,
+    "producer": "1_4",
+    "jsonSchema": "{\n  \"type\": \"array\",\n  \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n  \"items\": {\n    \"type\": \"object\",\n    \"properties\": {\n    },\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\"\n  }\n}"
+  }, {
+    "key": "`Task_6_loopMetadata`",
+    "dataType": "JSON_VALUE",
+    "displayName": "`Task_6_loopMetadata`",
+    "isTransient": true,
+    "producer": "1_6",
+    "jsonSchema": "{\n  \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"sub_integration_execution_ids\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"current_iteration_count\": {\n      \"type\": \"number\"\n    },\n    \"failure_message\": {\n      \"type\": \"string\"\n    },\n    \"failure_location\": {\n      \"type\": \"string\"\n    },\n    \"current_element\": {\n      \"type\": [\"string\", \"number\", \"object\", \"array\"]\n    }\n  }\n}"
+  }, {
+    "key": "hl7_messages_array",
+    "dataType": "STRING_ARRAY",
+    "displayName": "hl7_messages_array",
+    "inputOutputType": "OUT"
+  }, {
+    "key": "hl7_messages",
+    "dataType": "JSON_VALUE",
+    "displayName": "hl7_messages",
+    "inputOutputType": "OUT",
+    "jsonSchema": "{\n  \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"indexes\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"number\"\n      }\n    },\n    \"messages\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    }\n  }\n}"
+  }, {
+    "key": "hl7_msg_index_array",
+    "dataType": "DOUBLE_ARRAY",
+    "displayName": "hl7_msg_index_array",
+    "inputOutputType": "OUT"
+  }, {
+    "key": "hl7_messages_count",
+    "dataType": "INT_VALUE",
+    "displayName": "hl7_messages_count",
+    "inputOutputType": "OUT"
+  }, {
+    "key": "message_index_as_string",
+    "dataType": "STRING_VALUE",
+    "displayName": "message_index_as_string",
+    "inputOutputType": "OUT"
+  }, {
+    "key": "mediaLink",
+    "dataType": "STRING_VALUE",
+    "displayName": "mediaLink"
+  }, {
+    "key": "integration_name",
+    "dataType": "STRING_VALUE",
+    "displayName": "integration_name",
+    "inputOutputType": "OUT"
+  }, {
+    "key": "execution_id",
+    "dataType": "STRING_VALUE",
+    "displayName": "execution_id",
+    "inputOutputType": "OUT"
+  }, {
+    "key": "sub_execution_id",
+    "dataType": "STRING_VALUE",
+    "displayName": "sub_execution_id",
+    "inputOutputType": "OUT"
+  }],
+  "databasePersistencePolicy": "DATABASE_PERSISTENCE_ASYNC"
+}

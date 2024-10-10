@@ -19,6 +19,7 @@ EXAMPLE_NAME="sftp-server-example"
 TIMESTAMP=$(date '+%Y%m%d-%H%M%S')
 VM_SA_PREFIX="${EXAMPLE_NAME}-"
 BUCKET_PREFIX="${EXAMPLE_NAME}-"
+PS_TOPIC_PREFIX="${EXAMPLE_NAME}-"
 VM_INSTANCE_PREFIX="sftp-example-instance-"
 FWALL_PREFIX="sftp-example-allow-"
 
@@ -60,9 +61,24 @@ remove_gcs_bucket() {
             # rm -r removes the objects AND the bucket itself
             printf "clearing and removing bucket %s...\n" "${bucket}"
             gcloud storage rm --recursive "${bucket}" --project="$GCP_PROJECT"
-            # this is not necessary
+            # After the above, deleting the bucket explicitly is not necessary.
             # printf "removing bucket %s...\n" "${bucket}"
             # gcloud storage buckets delete "${bucket}" --project="$GCP_PROJECT"
+        done
+    else
+        printf "Found none.\n"
+    fi
+}
+
+remove_pubsub_topic() {
+    printf "Checking for pubsub topics buckets like (%s*)\n" "${PS_TOPIC_PREFIX}"
+    # shellcheck disable=SC2207
+    ARR=($(gcloud pubsub topics list --project="$GCP_PROJECT" --quiet --format='value[](name)' | grep "$PS_TOPIC_PREFIX"))
+    if [[ ${#ARR[@]} -gt 0 ]]; then
+        for topic in "${ARR[@]}"; do
+            # rm -r removes the objects AND the bucket itself
+            printf "removing topic %s...\n" "${topic}"
+            gcloud pubsub topics delete "${topic}" --project="$GCP_PROJECT"
         done
     else
         printf "Found none.\n"
@@ -99,6 +115,7 @@ OUTFILE=$(mktemp /tmp/appint-samples.gcloud.out.XXXXXX)
 printf "\nClean-up for the SFTP Server Example in GCE.\n\n"
 
 remove_gce_vm
+remove_pubsub_topic
 remove_sa
 remove_gcs_bucket
 remove_firewall_rules
