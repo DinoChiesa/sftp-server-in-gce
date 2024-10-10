@@ -1,14 +1,52 @@
-# Setting uop an SFTP server in Google Compute Engine
+# Setting up an SFTP server in Google Compute Engine
 
-The goal here is to be able to set up an SFTP server , at least for demo purposes, in Google Compute Engine.
+The goal here is to be able to set up an SFTP server in Google Compute Engine,
+in about 5 minutes.
 
-This is not a hardened SFTP solution. Just an illustration of what is possible and how to do it.
+The basic steps for doing this with the [Google Cloud
+console](https://console.cloud.google.com) (interactive UI) are described
+[here](https://stackoverflow.com/a/64143107).  But this repo uses a setup script
+that depends on gcloud to perform the necessary steps.
 
-Reference: https://stackoverflow.com/a/64143107
+
+## Disclaimer
+
+This example is not an official Google product, nor is it part of an
+official Google product.
+
+
+## Not Production Ready
+
+This is not a hardened SFTP solution. It works great for demonstrations and
+Proof-of-concept work, to show what is possible.
+
+To make it hardened, you would need to set up health monitoring and logging and
+alerting. This example sets up a single user in the SFTP system; you would want
+to use public/private key pairs probably, and set up provisioning and key
+management for that. All of that is outside the scope of this setup script.
+
+
+## Pre-requisites
+
+The pre-requisites for running this setup script are:
+
+- bash
+- [gcloud cli](https://cloud.google.com/sdk/docs/install)
+- unix command line tools like grep, tr, head, mktemp
+
+If you use [Google Cloud Shell](https://cloud.google.com/shell/docs), those things are already installed.
+
 
 ## Getting set up
 
-1. Modify the [`env.sh`](./env.sh) file, setting your own project, region, and zone.
+It takes about 5 minutes to set up a working SFTP server in Google Compute
+Engine (GCE). Follow these steps. Don't be afraid of the script rubbishing your
+GCP project; there is a cleanup script that removes all of the configuration the
+setup script creates.
+
+
+1. Using a text editor, modify the [`env.sh`](./env.sh) file, setting your own
+   project, region, and zone.
 
 2. Run the setup script
    ```
@@ -23,7 +61,7 @@ Reference: https://stackoverflow.com/a/64143107
    - install sftp onto that VM instance, create a testuser, and configure sshd to allow that user to login
    - install gcsfuse - a filesystem that can use GCS as backing store - onto that instance. Configure it for use with the GCS Bucket.
 
-   The final lines of output of the script will look something like this:
+   This takes just a few minutes. The final lines of output of the script will look something like this:
    ```
    OK. You can now SSH into the machine this way:
       export VM_INSTANCE_NAME="sftp-example-instance-u0aptk-20241008-233550"
@@ -33,16 +71,20 @@ Reference: https://stackoverflow.com/a/64143107
       sftp -oPort=22 testuser@${EXTERNAL_IP}
    ```
 
+
 ## Using it
 
-After the setup completes, you should have a server with an ephemeral externally-accessible IP address. You can then
-sftp into that server and drop things into the right directory, and the files will be stored in GCS, and the Pubsub topic gets a notification of that.
+After the setup completes, you should have a server with an ephemeral and
+externally-accessible IP address. You can then sftp into that server and drop
+things into the right directory, and the files will be stored in GCS; the
+Pubsub topic will get a notification of each file written.
 
 ```
 export EXTERNAL_IP="35.127.123.44"
 sftp -oPort=22 testuser@${EXTERNAL_IP}
 ```
 
+There is a single user provisioned: `testuser`.
 The password that the script sets for the user is `Secret123`.
 
 If you get an error message like the following:
@@ -77,14 +119,26 @@ and select your project, you should be able to see the bucket
 FTP.
 
 The SFTP server has rights to create objects in the GCS bucket, but it does not
-have rights to delete.  So if you try to upload a file that already exists in
-the bucket, it will fail with a permissions error.
+have rights to delete.  So an attempt to upload a file that already exists in
+the bucket will fail with a permissions error.
 
 
 ## Automating SFTP upload
 
-In the data sub directory, there is a little helper nodejs script that can
+In the data subdirectory, there is a little helper nodejs script that can
 automate the upload of a uniquely named file into the `gcs` directory on the remote server.
+
+To use this, you need
+[nodejs](https://nodejs.org/en/learn/getting-started/introduction-to-nodejs) and
+[npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
+installed on your machine. If you use [Google Cloud
+Shell](https://cloud.google.com/shell/docs), those things are already installed.
+
+```
+cd data
+npm install
+node ./put-one.js
+```
 
 This will _put_ the HL7 batch file:
 
@@ -141,3 +195,16 @@ To remove everything the setup script provisions, runt he cleanup script:
 ```
 ./clean-sftp-server-example.sh
 ```
+
+## License
+
+This material is [Copyright 2024 Google LLC](./NOTICE).
+and is licensed under the [Apache 2.0 License](LICENSE). This includes the Java
+code as well as the API Proxy configuration.
+
+## Support
+
+This example is open-source software, and is not a supported product.  If you
+need assistance, you can try inquiring on [the Google Cloud Community
+forum](https://www.GoogleCloudCommunity.com/gc/Google-Cloud/ct-p/google-cloud). There
+is no service-level guarantee for responses to inquiries posted to that site.
