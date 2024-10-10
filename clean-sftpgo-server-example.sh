@@ -74,7 +74,6 @@ remove_pubsub_topic() {
     ARR=($(gcloud pubsub topics list --project="$GCP_PROJECT" --quiet --format='value[](name)' | grep "$PS_TOPIC_PREFIX"))
     if [[ ${#ARR[@]} -gt 0 ]]; then
         for topic in "${ARR[@]}"; do
-            # rm -r removes the objects AND the bucket itself
             printf "removing topic %s...\n" "${topic}"
             gcloud pubsub topics delete "${topic}" --project="$GCP_PROJECT"
         done

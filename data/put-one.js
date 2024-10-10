@@ -2,7 +2,7 @@
 // ------------------------------------------------------------------
 //
 // created: Wed Oct  9 14:23:48 2024
-// last saved: <2024-October-10 14:49:13>
+// last saved: <2024-October-10 15:35:05>
 
 /* jshint esversion:9, node:true, strict:implied */
 /* global process, console, Buffer */
@@ -12,7 +12,7 @@ const defaults = {
   SOURCE_FILE: "batch-of-three-messages.hl7",
   EXTENSION: "hl7",
   SFTP_HOST: process.env.EXTERNAL_IP,
-  USERNAME: "testuser1",
+  USERNAME: "testuser",
   PASSWORD: "Secret123",
   PORT: 22
 };
@@ -78,7 +78,7 @@ async function main(args) {
           console.err("Syntax error");
           return usage();
         }
-        options[expecting] = arg;
+        options[expecting] = expecting == "PORT" ? Number(arg) : arg;
         expecting = null;
         break;
     }
