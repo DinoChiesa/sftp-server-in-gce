@@ -243,7 +243,7 @@ TOPIC="projects/${GCP_PROJECT}/topics/example-sftpgo-topic"
 INT_SA="integration-runner-1"
 INT_SA_FULL="${INT_SA}@${GCP_PROJECT}.iam.gserviceaccount.com"
 gcloud iam service-accounts create "$INT_SA" --project="$GCP_PROJECT" --quiet
-gcloud pubsub topics add-iam-policy-binding ${TOPIC} \
+gcloud pubsub topics add-iam-policy-binding ${TOPIC} --project="$GCP_PROJECT" \
   --member="serviceAccount:${INT_SA_FULL}" --role='roles/pubsub.viewer'
 ```
 
