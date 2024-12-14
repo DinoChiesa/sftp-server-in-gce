@@ -118,12 +118,14 @@ setup script creates.
     sftp -oPort=2022 testuser1@34.167.132.91
    ```
 
+   For SFTPgo, the admin username/password for the web interface is `admin/Secret123`.
+
 ## Using it
 
 After the setup completes, you should have a server with an ephemeral and
 externally-accessible IP address. You can then sftp into that server and drop
 things into the right directory, and the files will be stored in GCS; the
-Pubsub topic will get a notification of each file written.
+PubSub topic will get a notification of each file written.
 
 For  `internal-sftp`, the port is 22:
 ```
@@ -172,8 +174,8 @@ and select your project, you should be able to see the bucket
 FTP.
 
 The SFTP server has rights to create objects in the GCS bucket, but it does not
-have rights to delete.  So an attempt to upload a file that already exists in
-the bucket will fail with a permissions error.
+have rights to delete or overwrite.  So an attempt to upload a file that already
+exists in the bucket will fail with a permissions error.
 
 
 ## Automating SFTP upload
