@@ -2,7 +2,7 @@
 // ------------------------------------------------------------------
 //
 // created: Wed Oct  9 14:23:48 2024
-// last saved: <2024-October-16 04:44:50>
+// last saved: <2024-December-14 23:47:55>
 
 /* jshint esversion:9, node:true, strict:implied */
 /* global process, console, Buffer */
@@ -74,6 +74,48 @@ function usage(val) {
   );
   console.log(`\n\n`);
   process.exit(val);
+}
+
+function rand(min, max) {
+  const delta = max - min + 1;
+  return Math.floor(Math.random() * delta) + min;
+}
+
+function randomizedDate(seed) {
+  const yy = String(2015 + rand(0, 9)),
+    mm = ("0" + String(rand(1, 11))).slice(-2),
+    dd = ("0" + String(rand(3, 28))).slice(-2);
+
+  return `${yy}${mm}${dd}`;
+}
+
+function incrementMonth(seed) {
+  const yy = seed.substr(0, 4);
+  let dd = seed.substr(6, 2),
+    mm = seed.substr(4, 2);
+
+  // increment month
+  mm = ("0" + (Number(mm) + 1)).slice(-2);
+  // decrement day
+  dd = ("0" + (Number(dd) - 2)).slice(-2);
+  const hh = ("0" + String(rand(0, 23))).slice(-2),
+    ss = ("0" + String(rand(0, 59))).slice(-2);
+  return `${yy}${mm}${dd}${hh}${ss}`;
+}
+
+function uniqifyFileContents(contents) {
+  const replacements = {
+    "20220308": randomizedDate("20220308")
+  };
+  replacements["202204060407"] = incrementMonth(replacements["20220308"]);
+  Object.keys(replacements).forEach(
+    (seed) =>
+      (contents = contents.replace(
+        new RegExp(`${seed}`, "g"),
+        replacements[seed]
+      ))
+  );
+  return contents;
 }
 
 async function main(args) {
@@ -151,11 +193,19 @@ async function main(args) {
     console.log("connecting...");
     await sftp.connect(config);
     console.log("SFTP connection established. Uploading...");
-    //await fs.copyFile(options.SOURCE_FILE, newFileName);
-    await sftp.put(fqNewFileName, `gcs/${newFileName}`);
-    console.log(`File ${newFileName} uploaded successfully.`);
 
-    await fs.rm(fqNewFileName);
+    const newFileName = `copy-${randomString(9)}.${options.EXTENSION}`;
+
+    const contents = await fs.readFile(options.SOURCE_FILE, "utf-8"),
+      modifiedContents = uniqifyFileContents(contents);
+    //console.log(modifiedContents);
+    await fs.writeFile(newFileName, modifiedContents, "utf-8");
+
+    // Upload the file
+    await sftp.put(newFileName, `gcs/${newFileName}`);
+    console.log(`File ${newFileName} uploaded successfully.`);
+    await fs.rm(newFileName);
+
   } catch (err) {
     console.error("Error:", err);
   } finally {
