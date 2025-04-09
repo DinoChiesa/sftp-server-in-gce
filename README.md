@@ -1,7 +1,7 @@
 # Setting up an SFTP server in Google Compute Engine
 
-The goal here is to be able to set up an SFTP server in Google Compute Engine,
-in about 5 minutes.  There are two options :
+This repo shows you how to set up an SFTP server in Google Compute Engine,
+in about 5 minutes.  There are two options:
  - use the `internal-sftp`, which means that sshd will use the SFTP server code built-into the sshd.
  - use [SFTPgo](https://docs.sftpgo.com/2.6/), which is an external service, separate from sshd.
 
@@ -12,12 +12,10 @@ console](https://console.cloud.google.com) (interactive UI) are described
 [here](https://stackoverflow.com/a/64143107).
 
 For running SFTPgo, the steps for an interactive setup are described [in this
-article on
-Medium](https://medium.com/google-cloud/sftpgo-access-to-gcs-via-sftp-e203e0783f6f)
+article on Medium](https://medium.com/google-cloud/sftpgo-access-to-gcs-via-sftp-e203e0783f6f)
 by my old friend Neil Kolban.
 
-
-In either case, this repo uses a setup script that depends on gcloud to perform
+In either case, this repo uses a setup script that depends on [the gcloud cli](https://cloud.google.com/sdk/docs/install) to perform
 the necessary steps in an automated fashion.
 
 
@@ -40,6 +38,27 @@ username/password authentication, you'd probably want MFA. And you might want a
 persistent data provider like Postgres, etc. All of that is outside the scope of
 the setup scripts here.
 
+## Choosing between the options
+
+The sshd in a Linux base image includes basic SFTP capability.  It depends on
+the users registered on the Linux machine itself. It works, it's proven, it's
+secure.  But it has limited features.
+
+You would typically choose to use a dedicated SFTP server like SFTPgo over the
+built-in SFTP server in sshd in Linux system administration when you require
+more advanced features, better management capabilities, and more flexibility
+than what the basic sshd SFTP subsystem offers. Here's a quick list:
+
+ - offers a dedicated user management system that is independent of the underlying Linux system users. This allows you to create virtual users specifically for SFTP access without needing corresponding system accounts.   
+ - supports OpenID Connect integration. 
+ - provides a web-based administration interface, making user and permission management much easier, especially for non-technical administrators.
+ - supports user groups, simplifying the management of permissions for multiple users.
+ - REST API - for management tasks
+ - rate limiting
+ - quota enforcement
+ - IP filtering
+ - HTTP Hooks - get notified when files get transferred. 
+ 
 
 ## Pre-requisites
 
@@ -49,7 +68,7 @@ The pre-requisites for running this setup script are:
 - [gcloud cli](https://cloud.google.com/sdk/docs/install)
 - unix command line tools like grep, tr, head, mktemp
 
-If you use [Google Cloud Shell](https://cloud.google.com/shell/docs), those things are already installed.
+If you use [Google Cloud Shell](https://cloud.google.com/shell/docs), all of those things are already installed.
 
 
 ## Getting set up
@@ -268,9 +287,8 @@ To cleanup the SFTPgo server:
 
 ## License
 
-This material is [Copyright 2024 Google LLC](./NOTICE).
-and is licensed under the [Apache 2.0 License](LICENSE). This includes the Java
-code as well as the API Proxy configuration.
+This material is [Copyright © 2024 Google LLC](./NOTICE).
+and is licensed under the [Apache 2.0 License](LICENSE). 
 
 ## Support
 
